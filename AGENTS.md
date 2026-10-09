@@ -116,7 +116,7 @@ cargo fmt --all -- --check
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo test --workspace --all-features
 cargo deny check
-cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines 25
+cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines 35
 ```
 
 When workflow or shell files change, also run:

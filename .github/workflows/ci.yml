@@ -127,7 +127,7 @@ jobs:
       - uses: EmbarkStudios/cargo-deny-action@v2
 
   coverage:
-    name: Coverage (minimum 25%)
+    name: Coverage (minimum 35%)
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v7
@@ -143,7 +143,7 @@ jobs:
       - name: Measure and enforce line coverage
         run: >-
           cargo llvm-cov --workspace --all-features --summary-only
-          --fail-under-lines 25 --locked
+          --fail-under-lines 35 --locked
       - name: Generate HTML coverage report
         run: cargo llvm-cov report --html
       - name: Upload HTML coverage report

@@ -43,11 +43,11 @@ cargo build --workspace
 cargo test --workspace
 cargo clippy --workspace --all-targets --all-features -- -D warnings
 cargo fmt --all -- --check
-cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines 25
+cargo llvm-cov --workspace --all-features --summary-only --fail-under-lines 35
 ```
 
 The coverage command requires `cargo-llvm-cov` and the Rust
-`llvm-tools-preview` component. CI enforces a minimum of 25% total line
+`llvm-tools-preview` component. CI enforces a minimum of 35% total line
 coverage and uploads a browsable HTML report from every run. Generate the same
 report locally with:
 
