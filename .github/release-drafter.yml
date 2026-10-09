@@ -6,26 +6,18 @@ categories:
     when:
       label: skip-changelog
   - title: Features
-    semver-increment: minor
     exclusive: true
     when:
       label: enhancement
   - title: Bug Fixes
-    semver-increment: patch
     exclusive: true
     when:
       label: bug
   - title: Documentation
-    semver-increment: patch
     exclusive: true
     when:
       label: documentation
   - title: Maintenance
-    semver-increment: patch
-  - type: version-resolver
-    semver-increment: major
-    when:
-      label: major
 change-template: '- $TITLE (#$NUMBER) $AUTHORS'
 change-title-escapes: '\<*_&'
 autolabeler:

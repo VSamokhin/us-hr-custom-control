@@ -2,6 +2,8 @@ name: CI
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -46,10 +48,16 @@ jobs:
         include:
           - name: macOS arm64
             os: macos-15
+            artifact: macOS-arm64
+            archive: tar.gz
           - name: Windows x64
             os: windows-2025
+            artifact: Windows-x64
+            archive: zip
           - name: Linux x64
             os: ubuntu-24.04
+            artifact: Linux-x64
+            archive: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -63,7 +71,53 @@ jobs:
           sudo apt-get update && sudo apt-get install -y
           libasound2-dev libudev-dev libwayland-dev libx11-dev
           libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev pkg-config
-      - run: cargo build --workspace --all-targets --locked
+      - run: cargo build --workspace --all-targets --release --locked
+      - name: Build macOS application bundle
+        if: github.event_name == 'push' && runner.os == 'macOS'
+        run: ./packaging/macos/bundle.sh
+      - name: Package macOS release candidate
+        if: github.event_name == 'push' && runner.os == 'macOS'
+        shell: bash
+        run: |
+          package_name="us-hr-custom-control-macOS-arm64"
+          package_dir="dist/${package_name}"
+          mkdir -p "${package_dir}"
+          cp target/release/us-hr-cli "${package_dir}/"
+          cp -R "target/release/US-HR Custom Control.app" "${package_dir}/"
+          cp README.md LICENSE "${package_dir}/"
+          tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
+      - name: Package Linux release candidate
+        if: github.event_name == 'push' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          package_name="us-hr-custom-control-Linux-x64"
+          package_dir="dist/${package_name}"
+          mkdir -p "${package_dir}"
+          cp target/release/us-hr-control target/release/us-hr-cli "${package_dir}/"
+          cp packaging/linux/99-tascam-us-hr.rules "${package_dir}/"
+          cp README.md LICENSE "${package_dir}/"
+          tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
+      - name: Package Windows release candidate
+        if: github.event_name == 'push' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $packageName = "us-hr-custom-control-Windows-x64"
+          $packageDir = Join-Path "dist" $packageName
+          New-Item -ItemType Directory -Force -Path $packageDir
+          Copy-Item "target/release/us-hr-control.exe" $packageDir
+          Copy-Item "target/release/us-hr-cli.exe" $packageDir
+          Copy-Item "README.md" $packageDir
+          Copy-Item "LICENSE" $packageDir
+          Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip"
+      - name: Upload release candidate
+        if: github.event_name == 'push'
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate-${{ matrix.artifact }}
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+          path: dist/us-hr-custom-control-${{ matrix.artifact }}.${{ matrix.archive }}
 
   dependencies:
     name: Dependency policy

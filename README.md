@@ -148,22 +148,34 @@ compilation does not imply runtime or hardware validation.
 
 ### Creating a release
 
-Release Drafter maintains draft release notes from pull requests merged into
-`main`. Feature, bug-fix, and documentation pull requests are labeled from their
-branch names, titles, or changed files when possible.
+Every successful `main` branch CI run is eligible to become a release
+candidate. The serialized release workflow checks that no tagged draft release
+is awaiting a decision, then creates an annotated semantic-version tag for the
+tested commit. The first automatically generated tag uses the workspace version
+from `Cargo.toml`; later candidates increment its patch component.
 
-To prepare a release, create and push a semantic-version tag:
+The CI workflow builds and packages that exact commit for every platform. After
+all CI jobs pass, the release workflow reuses those immutable workflow
+artifacts, adds the generated version to their filenames, and attaches them with
+a `SHA256SUMS` file to a draft GitHub Release. Release Drafter generates its
+notes from merged pull requests; feature, bug-fix, and documentation pull
+requests are labeled automatically when possible.
 
-```sh
-git tag -a v0.1.0 -m "US-HR Custom Control v0.1.0"
-git push origin v0.1.0
-```
+Review each draft in GitHub and make one of these decisions before pushing the
+next release candidate:
 
-The release workflow builds each platform once, packages those build outputs,
-and reuses the resulting workflow artifacts to populate a draft GitHub Release.
-It also attaches a `SHA256SUMS` file. Inspect the draft and its assets on GitHub,
-then publish it manually when it is ready. Creating the draft does not imply
-runtime or hardware validation of the Windows and Linux packages.
+- Publish the draft to approve the release.
+- Delete the draft to decline it. The Git tag remains as a permanent marker of
+  the successfully tested commit and its version is not reused.
+
+If another `main` build finishes while a tagged draft is pending, its release
+workflow records why it was skipped and does not tag that commit. Publishing or
+deleting the draft allows the next successful `main` build to repeat the
+routine. Rerunning a failed release workflow safely reuses a tag that already
+points at the same commit.
+
+Creating or publishing a draft does not imply runtime or hardware validation of
+the Windows and Linux packages.
 
 ## Safety
 

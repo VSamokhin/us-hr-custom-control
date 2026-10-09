@@ -1,9 +1,6 @@
-name: Update release draft
+name: Release Drafter labels
 
 on:
-  push:
-    branches:
-      - main
   pull_request_target:
     types: [opened, reopened, synchronize, edited]
 
@@ -11,17 +8,7 @@ permissions:
   contents: read
 
 jobs:
-  update-release-draft:
-    if: github.event_name == 'push'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-      pull-requests: read
-    steps:
-      - uses: release-drafter/release-drafter@v7
-
   auto-label:
-    if: github.event_name == 'pull_request_target'
     runs-on: ubuntu-24.04
     permissions:
       contents: read

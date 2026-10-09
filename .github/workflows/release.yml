@@ -1,114 +1,148 @@
 name: Release builds
 
 on:
-  push:
-    tags:
-      - "v*"
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+concurrency:
+  group: release-candidate
+  cancel-in-progress: false
 
 permissions:
   contents: read
 
 jobs:
-  validate_tag:
-    name: Validate release tag
+  prepare:
+    name: Prepare release candidate
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-24.04
+    permissions:
+      contents: write
     outputs:
-      version: ${{ steps.validate.outputs.version }}
-    steps:
-      - name: Require a stable semantic version
-        id: validate
-        shell: bash
-        run: |
-          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Expected a stable semantic-version tag such as v1.2.3, got ${GITHUB_REF_NAME}" >&2
-            exit 1
-          fi
-          echo "version=${GITHUB_REF_NAME#v}" >> "${GITHUB_OUTPUT}"
-
-  build:
-    name: ${{ matrix.name }}
-    needs: validate_tag
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - name: macOS-arm64
-            os: macos-15
-            archive: tar.gz
-          - name: Windows-x64
-            os: windows-2025
-            archive: zip
-          - name: Linux-x64
-            os: ubuntu-24.04
-            archive: tar.gz
-    runs-on: ${{ matrix.os }}
+      commit_sha: ${{ steps.candidate.outputs.commit_sha }}
+      release_tag: ${{ steps.candidate.outputs.release_tag }}
+      version: ${{ steps.candidate.outputs.version }}
+      should_release: ${{ steps.candidate.outputs.should_release }}
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@master
         with:
-          toolchain: 1.99.0
-      - uses: Swatinem/rust-cache@v2
-      - name: Install Linux GUI dependencies
-        if: runner.os == 'Linux'
-        run: >-
-          sudo apt-get update && sudo apt-get install -y
-          libasound2-dev libudev-dev libwayland-dev libx11-dev
-          libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev pkg-config
-      - run: cargo build --workspace --release --locked
-      - name: Build macOS application bundle
-        if: runner.os == 'macOS'
-        run: ./packaging/macos/bundle.sh
-      - name: Package macOS release
-        if: runner.os == 'macOS'
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+      - name: Select and push release-candidate tag
+        id: candidate
         shell: bash
         env:
-          RELEASE_TAG: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
-          package_name="us-hr-custom-control-${RELEASE_TAG}-macOS-arm64"
-          package_dir="dist/${package_name}"
-          mkdir -p "${package_dir}"
-          cp target/release/us-hr-cli "${package_dir}/"
-          cp -R "target/release/US-HR Custom Control.app" "${package_dir}/"
-          cp README.md LICENSE "${package_dir}/"
-          tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
-      - name: Package Linux release
-        if: runner.os == 'Linux'
-        shell: bash
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          package_name="us-hr-custom-control-${RELEASE_TAG}-Linux-x64"
-          package_dir="dist/${package_name}"
-          mkdir -p "${package_dir}"
-          cp target/release/us-hr-control target/release/us-hr-cli "${package_dir}/"
-          cp packaging/linux/99-tascam-us-hr.rules "${package_dir}/"
-          cp README.md LICENSE "${package_dir}/"
-          tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
-      - name: Package Windows release
-        if: runner.os == 'Windows'
-        shell: pwsh
-        env:
-          RELEASE_TAG: ${{ github.ref_name }}
-        run: |
-          $packageName = "us-hr-custom-control-$env:RELEASE_TAG-Windows-x64"
-          $packageDir = Join-Path "dist" $packageName
-          New-Item -ItemType Directory -Force -Path $packageDir
-          Copy-Item "target/release/us-hr-control.exe" $packageDir
-          Copy-Item "target/release/us-hr-cli.exe" $packageDir
-          Copy-Item "README.md" $packageDir
-          Copy-Item "LICENSE" $packageDir
-          Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip"
-      - name: Upload packaged build
-        uses: actions/upload-artifact@v7
-        with:
-          name: release-${{ matrix.name }}
-          if-no-files-found: error
-          compression-level: 0
-          path: dist/us-hr-custom-control-${{ github.ref_name }}-${{ matrix.name }}.${{ matrix.archive }}
+          set -euo pipefail
+
+          set_output() {
+            printf '%s\n' "$1" >> "${GITHUB_OUTPUT}"
+          }
+
+          set_output "commit_sha=${RELEASE_SHA}"
+
+          existing_tag="$({
+            git tag --points-at "${RELEASE_SHA}" --list 'v*' |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
+          } | sort -V | tail -n 1)"
+
+          if [[ -n "${existing_tag}" ]]; then
+            if (( RUN_ATTEMPT > 1 )); then
+              echo "Reusing ${existing_tag}, which already points at ${RELEASE_SHA}."
+              set_output "release_tag=${existing_tag}"
+              set_output "version=${existing_tag#v}"
+              set_output "should_release=true"
+            else
+              {
+                echo "### Release candidate already handled"
+                echo
+                echo "Tag ${existing_tag} already points at commit \`${RELEASE_SHA}\`."
+                echo "Rerun its original release workflow if packaging needs to be retried."
+              } >> "${GITHUB_STEP_SUMMARY}"
+              set_output "should_release=false"
+            fi
+            exit 0
+          fi
+
+          pending_draft=""
+          while IFS=$'\t' read -r draft_tag draft_url; do
+            if git show-ref --verify --quiet "refs/tags/${draft_tag}"; then
+              pending_draft="${draft_tag} ${draft_url}"
+              break
+            fi
+          done < <(
+            gh api --method GET \
+              "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+              --jq '.[] | select(.draft) | [.tag_name, .html_url] | @tsv'
+          )
+
+          if [[ -n "${pending_draft}" ]]; then
+            {
+              echo "### Release candidate not created"
+              echo
+              echo "A draft release is still pending: ${pending_draft}"
+              echo
+              echo "Publish or delete that draft before pushing the next candidate."
+            } >> "${GITHUB_STEP_SUMMARY}"
+            set_output "should_release=false"
+            exit 0
+          fi
+
+          latest_tag="$({
+            git tag --list 'v*' |
+              grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' || true
+          } | sort -V | tail -n 1)"
+
+          if [[ -z "${latest_tag}" ]]; then
+            version="$({
+              sed -n '/^\[workspace\.package\]$/,/^\[/p' Cargo.toml |
+                sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p'
+            } | head -n 1)"
+            if [[ -z "${version}" ]]; then
+              echo "Could not read the initial stable version from [workspace.package]." >&2
+              exit 1
+            fi
+          else
+            version="${latest_tag#v}"
+            IFS=. read -r major minor patch <<< "${version}"
+            version="${major}.${minor}.$((10#${patch} + 1))"
+          fi
+
+          release_tag="v${version}"
+          if git show-ref --verify --quiet "refs/tags/${release_tag}"; then
+            echo "Refusing to replace existing tag ${release_tag}." >&2
+            exit 1
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "${release_tag}" "${RELEASE_SHA}" \
+            --message "US-HR Custom Control ${release_tag}"
+          git push origin "refs/tags/${release_tag}"
+
+          set_output "release_tag=${release_tag}"
+          set_output "version=${version}"
+          set_output "should_release=true"
+          {
+            echo "### Release candidate ${release_tag}"
+            echo
+            echo "Tagged commit \`${RELEASE_SHA}\` after CI completed successfully."
+          } >> "${GITHUB_STEP_SUMMARY}"
 
   draft-release:
     name: Create draft GitHub Release
-    needs: [validate_tag, build]
+    needs: prepare
+    if: needs.prepare.outputs.should_release == 'true'
     runs-on: ubuntu-24.04
     permissions:
       actions: read
@@ -118,9 +152,22 @@ jobs:
       - name: Download packaged builds
         uses: actions/download-artifact@v8
         with:
-          pattern: release-*
+          github-token: ${{ github.token }}
+          run-id: ${{ github.event.workflow_run.id }}
+          pattern: release-candidate-*
           path: release-assets
           merge-multiple: true
+      - name: Add release tag to package names
+        working-directory: release-assets
+        env:
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: |
+          mv us-hr-custom-control-macOS-arm64.tar.gz \
+            "us-hr-custom-control-${RELEASE_TAG}-macOS-arm64.tar.gz"
+          mv us-hr-custom-control-Linux-x64.tar.gz \
+            "us-hr-custom-control-${RELEASE_TAG}-Linux-x64.tar.gz"
+          mv us-hr-custom-control-Windows-x64.zip \
+            "us-hr-custom-control-${RELEASE_TAG}-Windows-x64.zip"
       - name: Create checksums
         working-directory: release-assets
         run: sha256sum ./* > SHA256SUMS
@@ -128,14 +175,15 @@ jobs:
         id: release-drafter
         uses: release-drafter/release-drafter@v7
         with:
-          name: ${{ github.ref_name }}
-          tag: ${{ github.ref_name }}
-          version: ${{ needs.validate_tag.outputs.version }}
-          commitish: ${{ github.sha }}
+          name: ${{ needs.prepare.outputs.release_tag }}
+          tag: ${{ needs.prepare.outputs.release_tag }}
+          version: ${{ needs.prepare.outputs.version }}
+          commitish: ${{ needs.prepare.outputs.commit_sha }}
       - name: Attach packaged builds to draft release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${GITHUB_REF_NAME}" release-assets/* --clobber
+          RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
+        run: gh release upload "${RELEASE_TAG}" release-assets/* --clobber
       - name: Add release link to workflow summary
         env:
           RELEASE_URL: ${{ steps.release-drafter.outputs.html_url }}
