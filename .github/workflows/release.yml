@@ -9,24 +9,38 @@ permissions:
   contents: read
 
 jobs:
+  validate_tag:
+    name: Validate release tag
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.validate.outputs.version }}
+    steps:
+      - name: Require a stable semantic version
+        id: validate
+        shell: bash
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable semantic-version tag such as v1.2.3, got ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+          echo "version=${GITHUB_REF_NAME#v}" >> "${GITHUB_OUTPUT}"
+
   build:
     name: ${{ matrix.name }}
+    needs: validate_tag
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: macOS-arm64
             os: macos-15
-            gui: target/release/us-hr-control
-            cli: target/release/us-hr-cli
+            archive: tar.gz
           - name: Windows-x64
             os: windows-2025
-            gui: target/release/us-hr-control.exe
-            cli: target/release/us-hr-cli.exe
+            archive: zip
           - name: Linux-x64
             os: ubuntu-24.04
-            gui: target/release/us-hr-control
-            cli: target/release/us-hr-cli
+            archive: tar.gz
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -44,14 +58,86 @@ jobs:
       - name: Build macOS application bundle
         if: runner.os == 'macOS'
         run: ./packaging/macos/bundle.sh
-      - uses: actions/upload-artifact@v7
+      - name: Package macOS release
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          package_name="us-hr-custom-control-${RELEASE_TAG}-macOS-arm64"
+          package_dir="dist/${package_name}"
+          mkdir -p "${package_dir}"
+          cp target/release/us-hr-cli "${package_dir}/"
+          cp -R "target/release/US-HR Custom Control.app" "${package_dir}/"
+          cp README.md LICENSE "${package_dir}/"
+          tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
+      - name: Package Linux release
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          package_name="us-hr-custom-control-${RELEASE_TAG}-Linux-x64"
+          package_dir="dist/${package_name}"
+          mkdir -p "${package_dir}"
+          cp target/release/us-hr-control target/release/us-hr-cli "${package_dir}/"
+          cp packaging/linux/99-tascam-us-hr.rules "${package_dir}/"
+          cp README.md LICENSE "${package_dir}/"
+          tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
+      - name: Package Windows release
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          $packageName = "us-hr-custom-control-$env:RELEASE_TAG-Windows-x64"
+          $packageDir = Join-Path "dist" $packageName
+          New-Item -ItemType Directory -Force -Path $packageDir
+          Copy-Item "target/release/us-hr-control.exe" $packageDir
+          Copy-Item "target/release/us-hr-cli.exe" $packageDir
+          Copy-Item "README.md" $packageDir
+          Copy-Item "LICENSE" $packageDir
+          Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip"
+      - name: Upload packaged build
+        uses: actions/upload-artifact@v7
         with:
-          name: us-hr-custom-control-${{ matrix.name }}
+          name: release-${{ matrix.name }}
           if-no-files-found: error
-          path: |
-            ${{ matrix.gui }}
-            ${{ matrix.cli }}
-            target/release/US-HR Custom Control.app
-            README.md
-            LICENSE
-            packaging/linux/99-tascam-us-hr.rules
+          compression-level: 0
+          path: dist/us-hr-custom-control-${{ github.ref_name }}-${{ matrix.name }}.${{ matrix.archive }}
+
+  draft-release:
+    name: Create draft GitHub Release
+    needs: [validate_tag, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      actions: read
+      contents: write
+      pull-requests: read
+    steps:
+      - name: Download packaged builds
+        uses: actions/download-artifact@v8
+        with:
+          pattern: release-*
+          path: release-assets
+          merge-multiple: true
+      - name: Create checksums
+        working-directory: release-assets
+        run: sha256sum ./* > SHA256SUMS
+      - name: Create or update draft release
+        id: release-drafter
+        uses: release-drafter/release-drafter@v7
+        with:
+          name: ${{ github.ref_name }}
+          tag: ${{ github.ref_name }}
+          version: ${{ needs.validate_tag.outputs.version }}
+          commitish: ${{ github.sha }}
+      - name: Attach packaged builds to draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "${GITHUB_REF_NAME}" release-assets/* --clobber
+      - name: Add release link to workflow summary
+        env:
+          RELEASE_URL: ${{ steps.release-drafter.outputs.html_url }}
+        run: |
+          echo "Draft release: ${RELEASE_URL}" >> "${GITHUB_STEP_SUMMARY}"

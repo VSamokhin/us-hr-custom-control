@@ -146,6 +146,25 @@ separate macOS arm64, Windows x64, and Linux x64 builds. Tagged releases upload
 each platform build as its own artifact. Successful Windows and Linux
 compilation does not imply runtime or hardware validation.
 
+### Creating a release
+
+Release Drafter maintains draft release notes from pull requests merged into
+`main`. Feature, bug-fix, and documentation pull requests are labeled from their
+branch names, titles, or changed files when possible.
+
+To prepare a release, create and push a semantic-version tag:
+
+```sh
+git tag -a v0.1.0 -m "US-HR Custom Control v0.1.0"
+git push origin v0.1.0
+```
+
+The release workflow builds each platform once, packages those build outputs,
+and reuses the resulting workflow artifacts to populate a draft GitHub Release.
+It also attaches a `SHA256SUMS` file. Inspect the draft and its assets on GitHub,
+then publish it manually when it is ready. Creating the draft does not imply
+runtime or hardware validation of the Windows and Linux packages.
+
 ## Safety
 
 Device writes require an explicit read-write transport. Discovery and status
