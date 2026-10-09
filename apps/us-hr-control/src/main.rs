@@ -350,7 +350,11 @@ impl eframe::App for ControlApp {
                 egui::ScrollArea::vertical()
                     .auto_shrink([false, false])
                     .show(ui, |ui| {
-                        header(ui, self.status.is_some(), &mut actions);
+                        header(
+                            ui,
+                            connection_state(!self.devices.is_empty(), self.status.is_some()),
+                            &mut actions,
+                        );
                         ui.add_space(18.0);
                         status_metrics(ui, self);
                         ui.add_space(16.0);
@@ -411,7 +415,24 @@ enum UiAction {
     DeletePreset,
 }
 
-fn header(ui: &mut egui::Ui, connected: bool, actions: &mut Vec<UiAction>) {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ConnectionState {
+    Offline,
+    Detected,
+    Ready,
+}
+
+const fn connection_state(device_detected: bool, status_ready: bool) -> ConnectionState {
+    if status_ready {
+        ConnectionState::Ready
+    } else if device_detected {
+        ConnectionState::Detected
+    } else {
+        ConnectionState::Offline
+    }
+}
+
+fn header(ui: &mut egui::Ui, connection: ConnectionState, actions: &mut Vec<UiAction>) {
     ui.horizontal(|ui| {
         ui.vertical(|ui| {
             ui.label(
@@ -439,16 +460,16 @@ fn header(ui: &mut egui::Ui, connected: bool, actions: &mut Vec<UiAction>) {
             {
                 actions.push(UiAction::Refresh);
             }
-            connection_badge(ui, connected);
+            connection_badge(ui, connection);
         });
     });
 }
 
-fn connection_badge(ui: &mut egui::Ui, connected: bool) {
-    let (label, color, fill) = if connected {
-        ("DEVICE ONLINE", theme::SUCCESS, theme::SUCCESS_BG)
-    } else {
-        ("NO DEVICE", theme::TEXT_MUTED, theme::SURFACE_RAISED)
+fn connection_badge(ui: &mut egui::Ui, connection: ConnectionState) {
+    let (label, color, fill) = match connection {
+        ConnectionState::Ready => ("DEVICE ONLINE", theme::SUCCESS, theme::SUCCESS_BG),
+        ConnectionState::Detected => ("DEVICE DETECTED", theme::WARNING, theme::WARNING_BG),
+        ConnectionState::Offline => ("NO DEVICE", theme::TEXT_MUTED, theme::SURFACE_RAISED),
     };
     egui::Frame::new()
         .fill(fill)
@@ -834,7 +855,9 @@ fn format_sample_rate(hz: u32) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{format_firmware, format_sample_rate, same_device_set};
+    use super::{
+        ConnectionState, connection_state, format_firmware, format_sample_rate, same_device_set,
+    };
     use us_hr_core::DeviceModel;
     use us_hr_usb::DeviceInfo;
 
@@ -883,5 +906,12 @@ mod tests {
         assert_eq!(format_sample_rate(44_100), "44.1 kHz");
         assert_eq!(format_sample_rate(48_000), "48 kHz");
         assert_eq!(format_sample_rate(192_000), "192 kHz");
+    }
+
+    #[test]
+    fn distinguishes_detection_from_ready_control_access() {
+        assert_eq!(connection_state(false, false), ConnectionState::Offline);
+        assert_eq!(connection_state(true, false), ConnectionState::Detected);
+        assert_eq!(connection_state(true, true), ConnectionState::Ready);
     }
 }

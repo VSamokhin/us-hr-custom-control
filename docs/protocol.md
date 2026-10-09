@@ -112,11 +112,15 @@ panel maps its controls as follows:
   or tested with real hardware on Linux. The same libusb control transfers are
   expected to work alongside USB Audio Class support, and a narrow `uaccess`
   udev rule is included, but this remains unvalidated.
-- Windows x86-64: compilation is covered by CI, but the build has not been
-  launched or tested with real hardware on Windows. Audio/ASIO remains owned by
-  the TASCAM driver. Runtime vendor-control access still needs validation on a
-  Windows host because driver binding can determine whether libusb can open the
-  device without a dedicated Windows backend.
+- Windows x86-64: descriptor discovery was validated with a connected US-1x2HR
+  using the built-in Windows USB Audio 2 driver. The device enumerated as
+  `0644:806f`, but libusb could not open it: the composite parent used
+  `usbccgp`, its only function used `usbaudio2`, and neither exposed a
+  libusb-compatible control path. No status query or write was performed.
+  Rebinding the only function or composite parent to WinUSB would disable audio,
+  so functional Windows control requires a dedicated backend that coexists with
+  the TASCAM audio driver. Windows CI builds and release packages are disabled
+  until such a backend exists.
 
 The only hardware validation performed to date used a US-1x2HR reporting
 firmware 1.00 build 14. Readback of every modeled setting succeeded, and the

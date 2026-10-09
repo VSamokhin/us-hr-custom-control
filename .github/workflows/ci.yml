@@ -50,10 +50,6 @@ jobs:
             os: macos-15
             artifact: macOS-arm64
             archive: tar.gz
-          - name: Windows x64
-            os: windows-2025
-            artifact: Windows-x64
-            archive: zip
           - name: Linux x64
             os: ubuntu-24.04
             artifact: Linux-x64
@@ -98,19 +94,6 @@ jobs:
           cp assets/app-icon.png "${package_dir}/"
           cp README.md LICENSE "${package_dir}/"
           tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
-      - name: Package Windows release candidate
-        if: github.event_name == 'push' && runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          $packageName = "us-hr-custom-control-Windows-x64"
-          $packageDir = Join-Path "dist" $packageName
-          New-Item -ItemType Directory -Force -Path $packageDir
-          Copy-Item "target/release/us-hr-control.exe" $packageDir
-          Copy-Item "target/release/us-hr-cli.exe" $packageDir
-          Copy-Item "assets/app-icon.png" $packageDir
-          Copy-Item "README.md" $packageDir
-          Copy-Item "LICENSE" $packageDir
-          Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip"
       - name: Upload release candidate
         if: github.event_name == 'push'
         uses: actions/upload-artifact@v7

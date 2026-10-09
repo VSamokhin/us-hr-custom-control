@@ -26,7 +26,7 @@ project decision and a separate safety design.
 - `docs/protocol.md`: source of truth for reverse-engineered command mappings,
   conversions, supported devices, and platform limitations.
 - `packaging`: platform integration and release packaging assets.
-- `.github/workflows`: macOS arm64, Windows x64, and Linux x64 CI/release jobs.
+- `.github/workflows`: macOS arm64 and Linux x64 CI/release jobs.
 
 ## Invariants and device safety
 
@@ -78,15 +78,15 @@ project decision and a separate safety design.
 
 ## Cross-platform requirements
 
-- Supported build targets are Apple Silicon macOS, 64-bit Windows, and 64-bit
-  Linux. Avoid platform-specific assumptions in `us-hr-core` and `us-hr-usb`.
-  Isolate unavoidable platform behavior behind narrow `cfg` blocks.
+- Supported build targets are Apple Silicon macOS and 64-bit Linux. Avoid
+  platform-specific assumptions in `us-hr-core` and `us-hr-usb`. Isolate
+  unavoidable platform behavior behind narrow `cfg` blocks.
 - Keep both Wayland and X11 support enabled for Linux GUI builds.
 - Do not replace or rebind the Windows audio driver. ASIO buffer sizing belongs
   to the vendor driver and is not a portable device setting.
-- Windows compilation is covered by CI, but vendor-control access with the
-  TASCAM driver is not yet hardware-validated. Do not claim Windows runtime
-  validation without testing it on a Windows host.
+- Do not build or publish Windows packages until a dedicated backend can access
+  vendor controls without replacing the audio driver. Descriptor discovery was
+  validated on Windows, but control-path access is not functional.
 - When adding dependencies, prefer portable Rust crates, avoid wildcard
   versions, update `Cargo.lock`, and ensure the license/source policy in
   `deny.toml` still passes.

@@ -313,7 +313,10 @@ impl UsbTransport {
             let Some(model) = DeviceModel::from_product_id(descriptor.product_id()) else {
                 continue;
             };
-            let handle = device.open()?;
+            let handle = device.open().map_err(|source| UsbError::OpenDevice {
+                device: model.display_name(),
+                source,
+            })?;
             let version = descriptor.device_version();
             let info = DeviceInfo {
                 model,
@@ -659,6 +662,15 @@ pub enum UsbError {
     /// No supported device was found.
     #[error("no supported TASCAM US-HR device found")]
     NotFound,
+    /// A supported device was enumerated, but its control path could not be opened.
+    #[error("{device} was detected, but its USB control path could not be opened: {source}")]
+    OpenDevice {
+        /// Display name of the detected device.
+        device: &'static str,
+        /// Error reported by the active libusb backend.
+        #[source]
+        source: rusb::Error,
+    },
     /// A write was attempted through a read-only transport.
     #[error("device writes are disabled by the transport safety policy")]
     ReadOnly,

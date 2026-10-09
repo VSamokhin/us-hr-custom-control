@@ -6,8 +6,8 @@ status queries and setting changes.
 
 The project does **not** replace an audio driver. It controls the interface's
 internal mixer and device settings over vendor-specific USB control transfers.
-macOS and Linux use their standard USB-audio stacks. Windows audio continues to
-use the TASCAM driver where ASIO support is required.
+macOS and Linux use their standard USB-audio stacks. Windows control is not
+supported, so Windows binaries are not built or published.
 
 The reverse-engineering findings and command map are documented in
 [`docs/protocol.md`](docs/protocol.md).
@@ -30,8 +30,10 @@ The reverse-engineering findings and command map are documented in
   build 14 on macOS. US-2x2HR and US-4x4HR control and status behaviors have not
   been tested and must not be assumed to be compatible.
 - macOS arm64 is the only platform tested at runtime with real hardware. The
-  Windows x64 and Linux x64 builds compile in CI, but have not been
-  runtime-tested or hardware-validated on those platforms.
+  Linux x64 build compiles in CI, but has not been runtime-tested or
+  hardware-validated. Windows builds are disabled because the available USB
+  backend cannot open the device control path without replacing the audio
+  driver.
 
 Firmware updating is intentionally out of scope until the ordinary settings
 protocol is complete and thoroughly tested.
@@ -110,14 +112,14 @@ macOS application bundle.
 Enter a name under **Presets** and choose **Save current** to store the latest
 verified device state. Choose a preset and select **Apply and verify** to write
 the complete snapshot and confirm it through hardware read-back. **Cmd+Z** on
-macOS or **Ctrl+Z** on Windows and Linux restores the previous verified state
+macOS or **Ctrl+Z** on Linux restores the previous verified state
 from the current application session. Up to 50 states are retained; preset
 application creates one undo step rather than one step per setting. The history
 is cleared when the connected device set changes.
 
 Presets are stored as JSON in the operating system's per-user configuration
 directory. They remain available after restarting the application and use the
-same format on macOS, Windows, and Linux.
+same format on macOS and Linux.
 
 ### Linux permissions
 
@@ -130,10 +132,23 @@ tag rather than making the device world-writable.
 
 ### Windows
 
-The Windows x64 build is compilation-tested in CI only. It has not been launched
-or tested with a connected interface on Windows. In particular, access to the
-vendor-control endpoint must be validated with the installed TASCAM driver; the
-application will not replace the audio interface with a generic WinUSB driver.
+Windows builds and release packages are disabled because the application cannot
+open the device control path with the normal Windows audio driver. The source
+may still compile on Windows, but that does not provide a functional control
+application.
+
+The Windows x64 build has been launched with a connected US-1x2HR using the
+built-in Windows USB Audio 2 driver. Device-descriptor discovery succeeds, but
+the libusb backend cannot open the vendor-control path because the device is
+bound only to the `usbccgp` and `usbaudio2` drivers. The GUI therefore reports
+the interface as detected but cannot read or change its control state.
+
+Do not replace the audio function or composite parent with a generic WinUSB
+driver: doing so would prevent Windows from using the interface for audio.
+Windows control support needs a dedicated backend that can coexist with the
+TASCAM audio driver. Installing the official TASCAM package provides its own
+driver and Settings Panel, but compatibility with that driver's private control
+interface has not yet been implemented in this project.
 
 ## Structure
 
@@ -144,9 +159,8 @@ application will not replace the audio interface with a generic WinUSB driver.
 
 CI treats warnings as errors, verifies the declared Rust 1.85 minimum, checks
 formatting, runs unit/property tests and dependency policy checks, and compiles
-separate macOS arm64, Windows x64, and Linux x64 builds. Tagged releases upload
-each platform build as its own artifact. Successful Windows and Linux
-compilation does not imply runtime or hardware validation.
+separate macOS arm64 and Linux x64 builds. Tagged releases upload each supported
+platform build as its own artifact.
 
 ### Creating a release
 
@@ -177,7 +191,7 @@ routine. Rerunning a failed release workflow safely reuses a tag that already
 points at the same commit.
 
 Creating or publishing a draft does not imply runtime or hardware validation of
-the Windows and Linux packages.
+the Linux package.
 
 ## Safety
 

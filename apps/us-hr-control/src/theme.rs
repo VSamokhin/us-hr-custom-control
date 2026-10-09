@@ -12,6 +12,8 @@ pub(crate) const TEXT: Color32 = Color32::from_rgb(232, 238, 246);
 pub(crate) const TEXT_MUTED: Color32 = Color32::from_rgb(137, 151, 169);
 pub(crate) const SUCCESS: Color32 = Color32::from_rgb(91, 211, 145);
 pub(crate) const SUCCESS_BG: Color32 = Color32::from_rgb(20, 54, 42);
+pub(crate) const WARNING: Color32 = Color32::from_rgb(241, 184, 91);
+pub(crate) const WARNING_BG: Color32 = Color32::from_rgb(61, 45, 20);
 pub(crate) const ERROR: Color32 = Color32::from_rgb(244, 112, 122);
 
 pub(crate) fn configure(context: &egui::Context) {
@@ -54,7 +56,7 @@ pub(crate) fn configure(context: &egui::Context) {
     visuals.selection.bg_fill = ACCENT_DARK;
     visuals.selection.stroke = Stroke::new(1.0_f32, TEXT);
     visuals.hyperlink_color = ACCENT;
-    visuals.warn_fg_color = Color32::from_rgb(241, 184, 91);
+    visuals.warn_fg_color = WARNING;
     visuals.error_fg_color = ERROR;
     visuals.slider_trailing_fill = true;
     visuals.button_frame = true;
