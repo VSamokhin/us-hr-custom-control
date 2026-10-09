@@ -183,7 +183,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ needs.prepare.outputs.release_tag }}
-        run: gh release upload "${RELEASE_TAG}" release-assets/* --clobber
+        run: >-
+          gh release upload "${RELEASE_TAG}" release-assets/* --clobber
+          --repo "${GITHUB_REPOSITORY}"
       - name: Add release link to workflow summary
         env:
           RELEASE_URL: ${{ steps.release-drafter.outputs.html_url }}
