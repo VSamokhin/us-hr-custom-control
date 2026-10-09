@@ -18,10 +18,14 @@ const CONNECTION_RETRY_INTERVAL: Duration = Duration::from_secs(1);
 const CONNECTION_RETRY_LIMIT: u8 = 5;
 
 fn main() -> eframe::Result {
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([920.0, 760.0])
+        .with_min_inner_size([780.0, 650.0]);
+    if let Some(icon) = application_icon() {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([920.0, 760.0])
-            .with_min_inner_size([780.0, 650.0]),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
@@ -32,6 +36,10 @@ fn main() -> eframe::Result {
             Ok(Box::new(ControlApp::new()))
         }),
     )
+}
+
+fn application_icon() -> Option<egui::IconData> {
+    eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/app-icon-256.png")).ok()
 }
 
 struct ControlApp {

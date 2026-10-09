@@ -23,6 +23,8 @@ The reverse-engineering findings and command map are documented in
 - Keeps a 50-state session undo history of verified device configurations.
 - Reads the device back after every write and reports mismatches as errors.
 - Provides both a command-line diagnostic/control tool and a desktop GUI.
+- Uses an original XLR-socket application icon across native window and release
+  packaging surfaces.
 - Keeps read-only queries and opt-in write access separate in the USB API.
 - Only the US-1x2HR has been tested with real hardware, using firmware 1.00
   build 14 on macOS. US-2x2HR and US-4x4HR control and status behaviors have not

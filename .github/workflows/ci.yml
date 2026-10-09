@@ -95,6 +95,7 @@ jobs:
           mkdir -p "${package_dir}"
           cp target/release/us-hr-control target/release/us-hr-cli "${package_dir}/"
           cp packaging/linux/99-tascam-us-hr.rules "${package_dir}/"
+          cp assets/app-icon.png "${package_dir}/"
           cp README.md LICENSE "${package_dir}/"
           tar -czf "dist/${package_name}.tar.gz" -C dist "${package_name}"
       - name: Package Windows release candidate
@@ -106,6 +107,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $packageDir
           Copy-Item "target/release/us-hr-control.exe" $packageDir
           Copy-Item "target/release/us-hr-cli.exe" $packageDir
+          Copy-Item "assets/app-icon.png" $packageDir
           Copy-Item "README.md" $packageDir
           Copy-Item "LICENSE" $packageDir
           Compress-Archive -Path $packageDir -DestinationPath "dist/$packageName.zip"
