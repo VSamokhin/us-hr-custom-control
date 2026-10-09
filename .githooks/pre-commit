@@ -1,0 +1,65 @@
+#!/bin/sh
+
+set -eu
+
+repository_root=$(git rev-parse --show-toplevel)
+cd "$repository_root"
+
+printf '%s\n' 'pre-commit: checking staged whitespace'
+git diff --cached --check
+
+if command -v cargo >/dev/null 2>&1; then
+    cargo_command=$(command -v cargo)
+elif command -v rustup >/dev/null 2>&1; then
+    cargo_command=$(rustup which cargo)
+    toolchain_bin=$(dirname "$cargo_command")
+    PATH="$toolchain_bin:$PATH"
+    export PATH
+else
+    printf '%s\n' 'pre-commit: cargo was not found; install Rust with rustup' >&2
+    exit 1
+fi
+
+printf '%s\n' 'pre-commit: checking Rust formatting'
+"$cargo_command" fmt --all -- --check
+
+printf '%s\n' 'pre-commit: running Clippy'
+"$cargo_command" clippy --workspace --all-targets --all-features --locked -- -D warnings
+
+printf '%s\n' 'pre-commit: running tests'
+"$cargo_command" test --workspace --all-features --locked
+
+if command -v cargo-deny >/dev/null 2>&1; then
+    printf '%s\n' 'pre-commit: checking dependency policy'
+    "$cargo_command" deny check
+else
+    printf '%s\n' 'pre-commit: cargo-deny is unavailable; dependency policy will be checked in CI' >&2
+fi
+
+staged_files=$(git diff --cached --name-only --diff-filter=ACMR)
+old_ifs=$IFS
+IFS='
+'
+for staged_file in $staged_files; do
+    case "$staged_file" in
+        .github/workflows/*.yml | .github/workflows/*.yaml)
+            if command -v actionlint >/dev/null 2>&1; then
+                printf '%s\n' "pre-commit: linting $staged_file"
+                actionlint "$staged_file"
+            else
+                printf '%s\n' "pre-commit: actionlint is unavailable; $staged_file will be checked in CI" >&2
+            fi
+            ;;
+        *.sh)
+            if command -v shellcheck >/dev/null 2>&1; then
+                printf '%s\n' "pre-commit: linting $staged_file"
+                shellcheck "$staged_file"
+            else
+                printf '%s\n' "pre-commit: shellcheck is unavailable; $staged_file will be checked in CI" >&2
+            fi
+            ;;
+    esac
+done
+IFS=$old_ifs
+
+printf '%s\n' 'pre-commit: all checks passed'

@@ -1,0 +1,4 @@
+# TASCAM US-1x2HR, US-2x2HR, and US-4x4HR control access for the active user.
+SUBSYSTEM=="usb", ATTR{idVendor}=="0644", ATTR{idProduct}=="806f", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0644", ATTR{idProduct}=="8070", TAG+="uaccess"
+SUBSYSTEM=="usb", ATTR{idVendor}=="0644", ATTR{idProduct}=="8071", TAG+="uaccess"

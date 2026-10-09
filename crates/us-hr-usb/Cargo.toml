@@ -1,0 +1,15 @@
+[package]
+name = "us-hr-usb"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+
+[dependencies]
+rusb.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+us-hr-core = { path = "../us-hr-core", version = "0.1.0" }
+
+[lints]
+workspace = true

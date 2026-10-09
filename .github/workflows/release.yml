@@ -1,0 +1,57 @@
+name: Release builds
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS-arm64
+            os: macos-15
+            gui: target/release/us-hr-control
+            cli: target/release/us-hr-cli
+          - name: Windows-x64
+            os: windows-2025
+            gui: target/release/us-hr-control.exe
+            cli: target/release/us-hr-cli.exe
+          - name: Linux-x64
+            os: ubuntu-24.04
+            gui: target/release/us-hr-control
+            cli: target/release/us-hr-cli
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux GUI dependencies
+        if: runner.os == 'Linux'
+        run: >-
+          sudo apt-get update && sudo apt-get install -y
+          libasound2-dev libudev-dev libwayland-dev libx11-dev
+          libxcursor-dev libxi-dev libxkbcommon-dev libxrandr-dev pkg-config
+      - run: cargo build --workspace --release --locked
+      - name: Build macOS application bundle
+        if: runner.os == 'macOS'
+        run: ./packaging/macos/bundle.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: us-hr-custom-control-${{ matrix.name }}
+          if-no-files-found: error
+          path: |
+            ${{ matrix.gui }}
+            ${{ matrix.cli }}
+            target/release/US-HR Custom Control.app
+            README.md
+            LICENSE
+            packaging/linux/99-tascam-us-hr.rules

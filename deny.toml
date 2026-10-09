@@ -1,0 +1,32 @@
+[advisories]
+version = 2
+yanked = "deny"
+# egui's built-in font renderer currently reaches this through
+# epaint -> ab_glyph -> owned_ttf_parser. The advisory reports that the crate is
+# unmaintained, not a known vulnerability, and states that no safe upgrade is
+# available. Keep this narrow exception visible until egui changes renderers.
+ignore = ["RUSTSEC-2026-0192"]
+
+[licenses]
+version = 2
+confidence-threshold = 0.93
+allow = [
+    "Apache-2.0",
+    "BSL-1.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "MIT",
+    "OFL-1.1",
+    "Ubuntu-font-1.0",
+    "Unicode-3.0",
+    "Zlib",
+]
+
+[bans]
+multiple-versions = "allow"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
