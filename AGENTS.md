@@ -142,6 +142,9 @@ shellcheck packaging/macos/bundle.sh
 
 CI also parses `packaging/windows/collect-driver-info.ps1` with PowerShell.
 
+When adding a GitHub Action to a workflow, look up its latest release on GitHub first and use that version; keep the
+existing actions on their latest releases too.
+
 If a required external checker is unavailable, say so explicitly instead of
 claiming it passed. Keep the working tree free of generated build artifacts;
 `target/` is not source.
